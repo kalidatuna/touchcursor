@@ -33,7 +33,7 @@
 #include <windows.h>
 #include <shlobj.h>
 
-BOOST_CLASS_VERSION(Options, 6)
+BOOST_CLASS_VERSION(Options, 7)
 
 
 namespace {
@@ -146,6 +146,9 @@ namespace boost {
             if (version >= 3) { // rev > 662
                 ar & opts.activationKey;
             }
+            if (version >= 7) {
+                ar & opts.activationKey2;
+            }
             if (version >= 4) { // rev > 700
                 ar & opts.beepForMistakes;
             }
@@ -180,6 +183,7 @@ Options::Options(InitOpt opt)
     , showInNotificationArea(true)
     , checkForUpdates(true)
     , activationKey(VK_SPACE)
+    , activationKey2(0)
     , useEnableList(false)  
     , useOnlyTrainList(false)
 {
