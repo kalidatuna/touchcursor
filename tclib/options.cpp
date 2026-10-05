@@ -206,7 +206,11 @@ Options::Options(InitOpt opt)
 void Options::Load() {
     std::wistringstream in(readSettings());
     boost::archive::text_wiarchive ia(in);
-    ia >> *this;
+    // Load into a fresh default object so fields that did not exist in an
+    // older settings archive cannot retain values from a previous live load.
+    Options loaded(Options::defaults);
+    ia >> loaded;
+    *this = loaded;
 }
 
 
