@@ -421,6 +421,11 @@ namespace {
             else if (activeActivationKey && code == activeActivationKey) {
                 e = keyDown ? activationDown : activationUp;
             }
+            else if (activeActivationKey && isActivationKey(code)) {
+                // Another configured activation key must not leak through as
+                // a mapped or ordinary key while this activation is active.
+                return true;
+            }
             else if (!keyDown && state == idle && isActivationKey(code)) {
                 e = activationUp;
             }
@@ -775,6 +780,19 @@ namespace test {
             CHECK((x, dn,  q,dn, x,dn, 0));
             CHECK((q, up,  q,dn, x,dn, q,up, 0));
             CHECK((x, up,  q,dn, x,dn, q,up, x,up, 0));
+
+            // overlapping activation keys: the non-active one is swallowed
+            resetOutput();
+            CHECK((SP, dn,  0));
+            CHECK((q, dn,   0));
+            CHECK((q, up,   0));
+            CHECK((SP, up,  SP,dn, SP,up, 0));
+
+            resetOutput();
+            CHECK((q, dn,   0));
+            CHECK((SP, dn,  0));
+            CHECK((SP, up,  0));
+            CHECK((q, up,   q,dn, q,up, 0));
             options.activationKey2 = 0;
 
             // normal (slow) typing
