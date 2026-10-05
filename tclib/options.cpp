@@ -146,9 +146,6 @@ namespace boost {
             if (version >= 3) { // rev > 662
                 ar & opts.activationKey;
             }
-            if (version >= 7) {
-                ar & opts.activationKey2;
-            }
             if (version >= 4) { // rev > 700
                 ar & opts.beepForMistakes;
             }
@@ -168,6 +165,9 @@ namespace boost {
 
             if (version < 6) { // first open source version
                 // just ignore old key stuff
+            }
+            if (version >= 7) {
+                ar & opts.activationKey2;
             }
         }
     } 
@@ -206,11 +206,9 @@ Options::Options(InitOpt opt)
 void Options::Load() {
     std::wistringstream in(readSettings());
     boost::archive::text_wiarchive ia(in);
-    // Load into a fresh default object so fields that did not exist in an
-    // older settings archive cannot retain values from a previous live load.
-    Options loaded(Options::defaults);
-    ia >> loaded;
-    *this = loaded;
+    // Older archives do not contain the optional second activation key.
+    activationKey2 = 0;
+    ia >> *this;
 }
 
 
