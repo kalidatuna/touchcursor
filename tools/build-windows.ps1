@@ -18,21 +18,32 @@ if ($LASTEXITCODE) { throw 'Windows Release build failed' }
 $common = @('/nologo','/EHsc','/MDd','/D_DEBUG','/DUNICODE','/D_UNICODE',"/I$boost",'/Itclib')
 $link = @('/link',"/LIBPATH:$boostLib",'user32.lib','shell32.lib','advapi32.lib','psapi.lib','gdi32.lib','comdlg32.lib','version.lib','wininet.lib')
 $support = @('tclib/options.cpp','tclib/launch.cpp','tclib/win32funcs.cpp','tclib/versionupdate.cpp')
+function Invoke-TestProcess([string]$Executable, [string]$Log, [string[]]$Arguments = @()) {
+    Write-Host "Running $Executable (60-second deadline)"
+    $stderr = "$Log.stderr"
+    $start = @{ FilePath = $Executable; PassThru = $true; RedirectStandardOutput = $Log; RedirectStandardError = $stderr }
+    if ($Arguments.Count) { $start.ArgumentList = $Arguments }
+    $process = Start-Process @start
+    $finished = $process.WaitForExit(60000)
+    if (!$finished) { $process.Kill(); $process.WaitForExit() }
+    Get-Content $Log,$stderr | Write-Host
+    Get-Content $stderr | Add-Content $Log
+    Remove-Item $stderr
+    if (!$finished) { throw "$Executable exceeded its 60-second deadline" }
+    if ($process.ExitCode) { throw "$Executable failed with exit code $($process.ExitCode)" }
+}
 & cl.exe @common tests/state_machine_tests.cpp @support /Fetests/state_machine_tests.exe @link
 if ($LASTEXITCODE) { throw 'State-machine test build failed' }
-& .\tests\state_machine_tests.exe 2>&1 | Tee-Object tests\state-machine.log
-if ($LASTEXITCODE) { throw 'State-machine regression tests failed' }
+Invoke-TestProcess .\tests\state_machine_tests.exe tests\state-machine.log
 
 $legacy = [IO.File]::ReadAllText("$PWD\tclib\options.cpp").Replace('BOOST_CLASS_VERSION(Options, 7)','BOOST_CLASS_VERSION(Options, 6)')
 [IO.File]::WriteAllText("$PWD\tests\generated_options_v6.cpp", $legacy)
 & cl.exe @common tests/legacy_settings_fixture.cpp tclib/launch.cpp /Fetests/legacy_settings_fixture.exe @link
 if ($LASTEXITCODE) { throw 'Legacy-fixture build failed' }
-& .\tests\legacy_settings_fixture.exe tests\settings-v6.cfg
-if ($LASTEXITCODE) { throw 'Legacy-fixture generation failed' }
+Invoke-TestProcess .\tests\legacy_settings_fixture.exe tests\legacy-fixture.log @('tests\settings-v6.cfg')
 & cl.exe @common tests/settings_tests.cpp tclib/launch.cpp /Fetests/settings_tests.exe @link
 if ($LASTEXITCODE) { throw 'Settings-test build failed' }
-& .\tests\settings_tests.exe tests\settings-v6.cfg 2>&1 | Tee-Object tests\settings.log
-if ($LASTEXITCODE) { throw 'Settings/migration tests failed' }
+Invoke-TestProcess .\tests\settings_tests.exe tests\settings.log @('tests\settings-v6.cfg')
 
 # Verify the actual release configuration window starts and exposes both selectors.
 Add-Type @'
@@ -40,6 +51,7 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 public static class TouchCursorWindows {
     public delegate bool Callback(IntPtr hwnd, IntPtr data);
     [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hwnd, Callback callback, IntPtr data);
@@ -48,6 +60,11 @@ public static class TouchCursorWindows {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr w, IntPtr l);
     public struct Rect { public int Left, Top, Right, Bottom; }
+    public static bool Capture(IntPtr hwnd, IntPtr dc) {
+        var capture = Task.Run(() => PrintWindow(hwnd, dc, 0));
+        if (!capture.Wait(10000)) throw new TimeoutException("Configuration screenshot exceeded its 10-second deadline");
+        return capture.Result;
+    }
     public static int CountChoices(IntPtr hwnd) {
         int count = 0;
         EnumChildWindows(hwnd, (child, data) => {
@@ -75,8 +92,10 @@ try {
     $bitmap = [System.Drawing.Bitmap]::new(($rect.Right-$rect.Left),($rect.Bottom-$rect.Top))
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $dc = $graphics.GetHdc()
-    try { [TouchCursorWindows]::PrintWindow($window,$dc,0) | Out-Null }
-    finally { $graphics.ReleaseHdc($dc) }
+    # Windows can block PrintWindow on a headless runner. Bound the native call.
+    $captured = [TouchCursorWindows]::Capture($window,$dc)
+    $graphics.ReleaseHdc($dc)
+    if (!$captured) { throw 'Configuration screenshot failed' }
     $bitmap.Save("$PWD\tests\configuration-window.png")
     $graphics.Dispose(); $bitmap.Dispose()
 } finally {

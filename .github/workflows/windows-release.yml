@@ -7,7 +7,7 @@ permissions:
   contents: write
 concurrency:
   group: touchcursor-windows-release
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   windows:
     runs-on: windows-2022
@@ -63,6 +63,7 @@ jobs:
           path: C:\tc-deps
           key: tc-msvc143-x86-wx326-boost186-v1
       - name: Build release and execute regression tests
+        timeout-minutes: 5
         shell: pwsh
         run: ./tools/build-windows.ps1
       - name: Upload build and test evidence
