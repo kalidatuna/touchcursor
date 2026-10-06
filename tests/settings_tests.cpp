@@ -28,15 +28,17 @@ int main(int argc, char** argv) {
     require(loaded.activationKey2 == 'Q', "secondary key round trip");
     require(loaded.keyMapping['J'] == VK_DOWN, "mapping round trip");
     require(loaded.disableProgs == original.disableProgs, "program list round trip");
-    std::wifstream fixture(argv[1]);
+
+    std::ifstream fixture(argv[1], std::ios::binary);
     std::fprintf(stderr, "Testing version-6 settings migration\n");
     require(fixture.is_open(), "legacy fixture opens");
-    // Match Options::Load: read the text file, then deserialize a wide string.
-    // A direct archive on wifstream installs Boost's null codecvt, which would
-    // incorrectly treat the text file as raw wchar_t data on Windows.
-    std::wstring saved;
-    std::getline(fixture, saved, wchar_t(0));
-    require(!saved.empty(), "legacy fixture contains settings");
+    std::string bytes;
+    char byte = 0;
+    while (fixture.get(byte)) bytes.push_back(byte);
+    require(fixture.eof(), "legacy fixture read completes");
+    require(!bytes.empty(), "legacy fixture contains settings");
+    std::wstring saved(bytes.begin(), bytes.end());
+
     std::wistringstream legacyEncoded(saved);
     boost::archive::text_wiarchive legacyInput(legacyEncoded);
     Options legacy(Options::defaults);
@@ -45,7 +47,7 @@ int main(int argc, char** argv) {
     require(legacy.activationKey2 == 0, "version-6 secondary key defaults to none");
     require(legacy.keyMapping['J'] == VK_DOWN, "version-6 mapping preserved");
     require(legacy.disableProgs.size() == 1 && legacy.disableProgs[0] == L"example.exe", "version-6 program list preserved");
-    // Exercise the public disk-loading path in this disposable Windows runner.
+
     {
         std::wofstream installed(settingsFilePath());
         installed << saved;
@@ -54,6 +56,7 @@ int main(int argc, char** argv) {
     Options migrated;
     require(migrated.activationKey == 'A' && migrated.activationKey2 == 0, "real disk load preserves version-6 keys");
     require(migrated.keyMapping['J'] == VK_DOWN && migrated.disableProgs == legacy.disableProgs, "real disk load preserves mapping and program list");
+
     original.Save();
     Options reloaded;
     require(reloaded.activationKey == 'A' && reloaded.activationKey2 == 'Q', "real Save/Load preserves both keys");
