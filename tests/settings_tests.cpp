@@ -31,13 +31,32 @@ int main(int argc, char** argv) {
     std::wifstream fixture(argv[1]);
     std::fprintf(stderr, "Testing version-6 settings migration\n");
     require(fixture.is_open(), "legacy fixture opens");
-    boost::archive::text_wiarchive legacyInput(fixture);
+    // Match Options::Load: read the text file, then deserialize a wide string.
+    // A direct archive on wifstream installs Boost's null codecvt, which would
+    // incorrectly treat the text file as raw wchar_t data on Windows.
+    std::wstring saved;
+    std::getline(fixture, saved, wchar_t(0));
+    require(!saved.empty(), "legacy fixture contains settings");
+    std::wistringstream legacyEncoded(saved);
+    boost::archive::text_wiarchive legacyInput(legacyEncoded);
     Options legacy(Options::defaults);
     legacyInput >> legacy;
     require(legacy.activationKey == 'A', "version-6 primary key preserved");
     require(legacy.activationKey2 == 0, "version-6 secondary key defaults to none");
     require(legacy.keyMapping['J'] == VK_DOWN, "version-6 mapping preserved");
     require(legacy.disableProgs.size() == 1 && legacy.disableProgs[0] == L"example.exe", "version-6 program list preserved");
+    // Exercise the public disk-loading path in this disposable Windows runner.
+    {
+        std::wofstream installed(settingsFilePath());
+        installed << saved;
+        require(installed.good(), "legacy fixture installed in runner profile");
+    }
+    Options migrated;
+    require(migrated.activationKey == 'A' && migrated.activationKey2 == 0, "real disk load preserves version-6 keys");
+    require(migrated.keyMapping['J'] == VK_DOWN && migrated.disableProgs == legacy.disableProgs, "real disk load preserves mapping and program list");
+    original.Save();
+    Options reloaded;
+    require(reloaded.activationKey == 'A' && reloaded.activationKey2 == 'Q', "real Save/Load preserves both keys");
     std::puts("PASS: settings round trip and genuine version-6 archive migration");
     return 0;
     } catch (const std::exception& error) {
