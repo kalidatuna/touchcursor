@@ -150,6 +150,18 @@ public:
         createSecondActivationKeyControl();
         populateActivationKeyLists();
         sendOptionsToControls(options);
+        // The second selector is added after XRC sets the original window size.
+        // Recalculate sizes after populating both choices so dropdowns stay visible.
+        for (wxWindow* parent = ActivationKeys->GetParent(); parent && parent != this; parent = parent->GetParent()) {
+            parent->InvalidateBestSize();
+        }
+        wxWindow* panel = GetChildren()[0];
+        wxSize minimum = panel->GetSizer()->CalcMin();
+        wxSize client = GetClientSize();
+        client.IncTo(minimum);
+        SetMinClientSize(minimum);
+        SetClientSize(client);
+        panel->Layout();
         KeyList->SetFont(wxSystemSettings::GetFont(wxSYS_ANSI_FIXED_FONT));
 
         wxAcceleratorEntry entries[2];
