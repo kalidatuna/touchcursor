@@ -8,7 +8,12 @@ int main(int argc, char** argv) {
     legacy.activationKey = 'A';
     legacy.keyMapping['J'] = VK_DOWN;
     legacy.disableProgs.push_back(L"example.exe");
-    std::wofstream file(argv[1]);
-    file << legacy.AsString();
+
+    const std::wstring encoded = legacy.AsString();
+    std::ofstream file(argv[1], std::ios::binary);
+    for (std::wstring::const_iterator it = encoded.begin(); it != encoded.end(); ++it) {
+        if (*it > 0x7f) return 2;
+        file.put(static_cast<char>(*it));
+    }
     return file.good() ? 0 : 1;
 }
