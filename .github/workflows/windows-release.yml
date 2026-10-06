@@ -31,12 +31,14 @@ jobs:
         run: |
           New-Item C:\tc-deps -ItemType Directory -Force | Out-Null
           Invoke-WebRequest https://github.com/wxWidgets/wxWidgets/releases/download/v3.2.6/wxWidgets-3.2.6.zip -OutFile C:\tc-deps\wx.zip
-          Expand-Archive C:\tc-deps\wx.zip C:\tc-deps\wx-extracted
+          & "$env:ProgramFiles\7-Zip\7z.exe" x -y C:\tc-deps\wx.zip '-oC:\tc-deps\wx-extracted' *> $null
+          if ($LASTEXITCODE) { throw 'wxWidgets extraction failed' }
           $wxRoot = Get-ChildItem C:\tc-deps\wx-extracted -Filter configure -Recurse | Select-Object -First 1
           if (!$wxRoot) { throw 'wxWidgets source archive layout was not recognized' }
           Move-Item $wxRoot.Directory.FullName C:\tc-deps\wx
           Invoke-WebRequest https://archives.boost.io/release/1.86.0/source/boost_1_86_0.zip -OutFile C:\tc-deps\boost.zip
-          Expand-Archive C:\tc-deps\boost.zip C:\tc-deps
+          & "$env:ProgramFiles\7-Zip\7z.exe" x -y C:\tc-deps\boost.zip '-oC:\tc-deps' *> $null
+          if ($LASTEXITCODE) { throw 'Boost extraction failed' }
           Push-Location C:\tc-deps\boost_1_86_0
           cmd /c bootstrap.bat
           if ($LASTEXITCODE) { throw 'Boost bootstrap failed' }
@@ -54,6 +56,12 @@ jobs:
           if ($LASTEXITCODE) { throw 'wxrc build failed' }
           Pop-Location
           Remove-Item C:\tc-deps\wx.zip,C:\tc-deps\boost.zip
+      - name: Save successful dependency build
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: C:\tc-deps
+          key: tc-msvc143-x86-wx326-boost186-v1
       - name: Build release and execute regression tests
         shell: pwsh
         run: ./tools/build-windows.ps1
@@ -75,5 +83,5 @@ jobs:
           $tag = 'v1.7.1-two-keys-20261006'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists. Review it instead of overwriting it.' }
-          gh release create $tag dist/*.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'TouchCursor: two activation keys, Windows x86' --notes-file RELEASE_NOTES.md --prerelease
+          gh release create $tag dist/TouchCursor-two-keys-Windows-x86.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'TouchCursor: two activation keys, Windows x86' --notes-file RELEASE_NOTES.md --prerelease
           if ($LASTEXITCODE) { throw 'Release publication failed' }

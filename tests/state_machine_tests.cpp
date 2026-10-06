@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <cstdio>
+#include <cwchar>
 
 // Run the real hook's existing synthetic-event suite without installing a hook.
 // Emit its diagnostics to CI, rather than only to the Windows debugger.
