@@ -152,6 +152,8 @@ public:
         sendOptionsToControls(options);
         // The second selector is added after XRC sets the original window size.
         // Recalculate sizes after populating both choices so dropdowns stay visible.
+        // XRC gave the notebook a zero minimum, which hides its pages' requirements.
+        ActivationKeys->GetParent()->GetParent()->SetMinSize(wxDefaultSize);
         for (wxWindow* parent = ActivationKeys->GetParent(); parent && parent != this; parent = parent->GetParent()) {
             parent->InvalidateBestSize();
         }
