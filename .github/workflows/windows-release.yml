@@ -81,8 +81,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'v1.7.1-two-keys-20261006'
+          $tag = 'v1.7.1-two-keys-20261006.1'
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists. Review it instead of overwriting it.' }
           gh release create $tag dist/TouchCursor-two-keys-Windows-x86.zip --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title 'TouchCursor: two activation keys, Windows x86' --notes-file RELEASE_NOTES.md --prerelease
           if ($LASTEXITCODE) { throw 'Release publication failed' }
+          gh release edit v1.7.1-two-keys-20261006 --repo $env:GITHUB_REPOSITORY --title 'Superseded: first two-key Windows build' --notes 'Superseded by v1.7.1-two-keys-20261006.1, which fixes a clipped second selector at the default window size. Use https://github.com/kalidatuna/touchcursor/releases/tag/v1.7.1-two-keys-20261006.1' --prerelease
+          if ($LASTEXITCODE) { throw 'Could not mark the earlier release as superseded' }

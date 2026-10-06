@@ -58,8 +58,12 @@ public static class TouchCursorWindows {
     [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr hwnd, StringBuilder text, int size);
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool ClientToScreen(IntPtr hwnd, ref Point point);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr w, IntPtr l);
     public struct Rect { public int Left, Top, Right, Bottom; }
+    public struct Point { public int X, Y; }
     public static bool Capture(IntPtr hwnd, IntPtr dc) {
         var capture = Task.Run(() => PrintWindow(hwnd, dc, 0));
         if (!capture.Wait(10000)) throw new TimeoutException("Configuration screenshot exceeded its 10-second deadline");
@@ -70,7 +74,16 @@ public static class TouchCursorWindows {
         EnumChildWindows(hwnd, (child, data) => {
             var text = new StringBuilder(256);
             GetClassName(child, text, text.Capacity);
-            if (text.ToString() == "ComboBox") count++;
+            if (text.ToString() == "ComboBox") {
+                Rect choice, bounds;
+                var parent = GetParent(child);
+                if (!GetWindowRect(child, out choice) || !GetClientRect(parent, out bounds)) return true;
+                var top = new Point { X = bounds.Left, Y = bounds.Top };
+                var bottom = new Point { X = bounds.Right, Y = bounds.Bottom };
+                ClientToScreen(parent, ref top); ClientToScreen(parent, ref bottom);
+                if (choice.Left >= top.X && choice.Top >= top.Y && choice.Right <= bottom.X && choice.Bottom <= bottom.Y) count++;
+                else Console.WriteLine("FAIL: activation selector extends outside its panel");
+            }
             return true;
         }, IntPtr.Zero);
         return count;
@@ -84,8 +97,8 @@ try {
     $window = $config.MainWindowHandle
     if (!$window -or $config.HasExited) { throw 'Configuration window did not open' }
     $choices = [TouchCursorWindows]::CountChoices($window)
-    if ($choices -lt 2) { throw "Expected both activation-key selectors, found $choices" }
-    "PASS: Release configuration window opened with $choices key selectors" | Tee-Object tests\window-smoke.log
+    if ($choices -lt 2) { throw "Expected both activation-key selectors fully visible, found $choices" }
+    "PASS: Release configuration window opened with $choices fully visible key selectors" | Tee-Object tests\window-smoke.log
     Add-Type -AssemblyName System.Drawing
     $rect = New-Object TouchCursorWindows+Rect
     [TouchCursorWindows]::GetWindowRect($window, [ref]$rect) | Out-Null

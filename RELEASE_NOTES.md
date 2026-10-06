@@ -7,6 +7,10 @@ the same mappings. Set the second selector to None to keep the original behavior
 Tapping either activation key still types that key; existing key mappings and
 version-6 settings remain supported.
 
+The configuration window sizes itself to show both selectors and their dropdowns.
+This revision fixes a clipped second selector found while reviewing the first
+build's screenshot.
+
 Download and extract the Windows x86 ZIP into one folder. Keep the EXE and DLL files
 together. Exit any running TouchCursor before starting this version. Run
 touchcursor.exe, then open Configure from its tray icon. The x86 application also
